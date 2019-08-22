@@ -1,0 +1,74 @@
+118  16:56:28 2018-08-30 tar xf Veritas_InfoScale_7.3.1_RHEL.tar
+  119  16:56:42 2018-08-30 cd dvd1-redhatlinux/rhel7_x86_64/
+  120  16:56:45 2018-08-30 ./installer
+  121  17:14:35 2018-08-30 cd
+  122  17:14:40 2018-08-30 hastatus -sum
+  123  17:14:46 2018-08-30 vi .bash_profile
+  124  17:15:04 2018-08-30 scp -p .bash_profile BBN-PA-CRMP02:~/
+  125  18:10:19 2018-08-30 clear
+  126  18:10:21 2018-08-30 hastatus -sum
+  127  18:10:27 2018-08-30 lltstat -nvv | head
+  128  18:10:42 2018-08-30 top
+  129  20:32:59 2018-08-30 ip a
+  130  20:33:09 2018-08-30 top
+  131  12:23:13 2018-08-31 clear
+  132  12:23:19 2018-08-31 vxdisk list
+  133  12:23:24 2018-08-31 pvs
+  134  12:23:29 2018-08-31 vgs
+  135  12:23:41 2018-08-31 vxdisk -o size -uH list
+  136  12:24:33 2018-08-31 vxdisksetup -i 3pardata0_1881
+  137  12:24:37 2018-08-31 vxdisksetup -i 3pardata0_1882
+  138  12:24:41 2018-08-31 vxdisksetup -i 3pardata0_1883
+  139  12:24:46 2018-08-31 vxdisksetup -i 3pardata0_1884
+  140  12:25:18 2018-08-31 vxdg -s init crmp_dg crmp_dg01=3pardata0_1881 crmp_dg02=3pardata0_1882 crmp_dg03=3pardata0_1883 crmp_dg04=3pardata0_1884
+  141  12:25:25 2018-08-31 vxdisk list
+  142  12:25:35 2018-08-31 vxdg -s init crmp_dg crmp_dg01=3pardata0_1881 crmp_dg02=3pardata0_1882 crmp_dg03=3pardata0_1883 crmp_dg04=3pardata0_1884
+  143  12:25:43 2018-08-31 vxdg list
+  144  12:25:48 2018-08-31 ssh -q BBN-PA-CRMP02
+  145  12:25:59 2018-08-31 vxdg -s init crmp_dg crmp_dg01=3pardata0_1881 crmp_dg02=3pardata0_1882 crmp_dg03=3pardata0_1883 crmp_dg04=3pardata0_1884
+  146  12:26:04 2018-08-31 vxdisk list
+  147  12:29:36 2018-08-31 vxprint -htqg crmp_dg
+  148  12:30:36 2018-08-31 vxassist -g crmp_dg make logs_vol 1048576000 alloc=3pardata0_1881
+  149  12:30:44 2018-08-31 vxassist -g crmp_dg make logs_vol 1048576000 alloc=crmp_dg01
+  150  12:31:02 2018-08-31 vxassist -g crmp_dg make pacs_vol 1048576000 alloc=crmp_dg01
+  151  12:31:25 2018-08-31 vxassist -g crmp_dg make logs_backup 3221159632 alloc=crmp_dg02,crmp_dg03
+  152  12:31:41 2018-08-31 vxdg -g crmp_dg free
+  153  12:32:02 2018-08-31 vxassist -g crmp_dg make pacs_backup 3221159632 alloc=crmp_dg03,crmp_dg04
+  154  12:32:18 2018-08-31 vxdg -g crmp_dg -uH free
+  155  12:32:34 2018-08-31 bc
+  156  12:33:09 2018-08-31 vxassist -g crmp_dg remove volume logs_vol
+  157  12:33:14 2018-08-31 vxassist -g crmp_dg remove volume pacs_vol
+  158  12:33:24 2018-08-31 vxassist -g crmp_dg make logs_vol 1073708904 alloc=crmp_dg01
+  159  12:33:50 2018-08-31 vxdg -g crmp_dg -uH free
+  160  12:33:56 2018-08-31 vxdg -g crmp_dg free
+  161  12:34:12 2018-08-31 vxassist -g crmp_dg make pacs_vol 1073708896 alloc=crmp_dg01
+  162  12:34:15 2018-08-31 vxdg -g crmp_dg free
+  163  12:34:18 2018-08-31 bc
+  164  12:34:42 2018-08-31 vxassist -g crmp_dg make pacs_backup 3221093792 alloc=crmp_dg03,crmp_dg04
+  165  12:34:45 2018-08-31 vxdg -g crmp_dg free
+  166  12:34:53 2018-08-31 vxprint -htqg crmp_dg
+  167  12:35:32 2018-08-31 mkfs.vxfs -o bsize=8192 /dev/vx/rdsk/crmp_dg/logs_backup
+  168  12:35:36 2018-08-31 mkfs.vxfs -o bsize=8192 /dev/vx/rdsk/crmp_dg/logs_vol
+  169  12:35:42 2018-08-31 mkfs.vxfs -o bsize=8192 /dev/vx/rdsk/crmp_dg/pacs_backup
+  170  12:35:46 2018-08-31 mkfs.vxfs -o bsize=8192 /dev/vx/rdsk/crmp_dg/pacs_vol
+  171  12:36:08 2018-08-31 mkdir /pacs_backup /logs /pacs /logs_backup
+  172  12:36:17 2018-08-31 ssh -q BBN-PA-CRMP02 mkdir /pacs_backup /logs /pacs /logs_backup
+  173  12:36:23 2018-08-31 hastatus -sum
+  174  12:38:00 2018-08-31 ping 10.135.1.104
+  175  12:38:03 2018-08-31 ping 10.135.1.103
+  176  12:38:59 2018-08-31 hastatus -sum
+  177  12:39:12 2018-08-31 hastop -all -force
+  178  12:39:15 2018-08-31 gabconfig -a
+  179  12:39:23 2018-08-31 vi /etc/VRTSvcs/conf/config/main.cf
+  180  12:40:09 2018-08-31 hastart
+  181  12:40:14 2018-08-31 hastatus -sum
+  182  12:40:29 2018-08-31 ssh -q BBN-PA-CRMP02
+  183  12:40:54 2018-08-31 hastatus -sum
+  184  12:42:54 2018-08-31 top
+  185  15:28:39 2018-08-31 uname -a
+  186  15:28:48 2018-08-31 cat /etc/redhat-release
+  187  15:28:58 2018-08-31 rpm -qa | grep VRTSvxfs
+  188  15:29:06 2018-08-31 dmidecode -t 4 | grep "Core Count"
+  189  15:29:12 2018-08-31 hastatus -sum
+  190  15:29:19 2018-08-31 ip a | grep inet
+

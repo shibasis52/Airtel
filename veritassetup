@@ -1,0 +1,285 @@
+[root@n2pl-pac-abc125 ~]# /opt/VRTS/bin/mount -t vxfs -o cluster,nomtime,mntlock=VCS /dev/vx/dsk/cda56dg/absand /absand/
+[root@n2pl-pac-abc125 ~]# /opt/VRTS/bin/mount -t vxfs -o cluster,nomtime,mntlock=VCS /dev/vx/dsk/cda56dg/abwork /abwork/
+[root@n2pl-pac-abc125 ~]# /opt/VRTS/bin/mount -t vxfs -o cluster,nomtime,mntlock=VCS /dev/vx/dsk/cda56dg/land_arch /land_arch/
+[root@n2pl-pac-abc125 ~]# /opt/VRTS/bin/mount -t vxfs -o cluster,nomtime,mntlock=VCS /dev/vx/dsk/cda56dg/data_tmp /data/
+
+
+/opt/VRTS/bin/mmount -t vxfs -o cluster,nomtime,mntlock=VCS /dev/vx/dsk/devcda_dg/data_vol /data
+
+NOte: make sure you would be in /opt/VRTS/bin
+
+ /opt/VRTS/bin/hastatus  -sum | grep n2pl-pac-abc119
+
+ cat /etc/vxfendg
+
+
+####### logs file ##
+
+tail -f /var/VRTSvcs/log/engine_A.log
+
+
+######### how to clean the faulty error ######
+
+ hares -clear cfsmount1 -sys n2pl-pac-abc109
+
+######### how to check master and slave #######
+
+vxclustadm nidmap
+
+############# in case of faulty disk showing ###########
+
+grep 0xfff /etc/vx/disk.info  | it showing 0xfff means fauly disk  that case 
+
+
+just rename file mv  /etc/vx/disk.info /etc/vx/disk.info_bck020817
+
+
+After that take reboot .. this file generate again.
+
+##########################
+
+
+
+vxdisk list | grep vxfendg
+
+
+vxdisk -o alldgs list | grep vxfendg
+
+
+vxdisk list
+
+vxdisk list | grep  -v cda56dg
+
+
+Go to enter node to check
+
+vxdisk -e list
+
+
+
+3pardata0_1617 auto:cdsdisk   -            (vxfendg)   online thinrclm      sddx             tprclm
+3pardata0_1618 auto:cdsdisk   -            (vxfendg)   online thinrclm      sdcn             tprclm
+3pardata0_1619 auto:cdsdisk   -            (vxfendg)   online thinrclm      sdcl             tprclm
+
+#### how to disable that vcs does not start automatically ####
+
+go to file  cd /etc/sysconfig/
+
+cat vcs
+
+VCS_START=1
+VCS_STOP=1
+
+Note: by default it is VCS_START=1 which means it will start automatically. 
+
+If VCS_START=0 then it will not start automatically. 
+
+##### We have to stop services before reboot the server ##########
+
+First check the status with below command 
+
+###########
+from Henry Armstrong (internal) to everyone:
+gabconfig -a 
+from Henry Armstrong (internal) to everyone:
+grep 0xfff /etc/vx/disk.info 
+from Henry Armstrong (internal) to everyone:
+/etc/vx/disk.info 
+from Henry Armstrong (internal) to everyone:
+vxclustadm nidmap
+############
+
+   
+
+hastatus -sum | grep n2pl-pac-abc119   ( last is name of host)
+
+Below output is health server . if it is showing offline or faulty. it means there is some problem.
+
+[root@n2pl-pac-abc119 sysconfig]# hastatus -sum | grep n2pl-pac-abc119
+A  n2pl-pac-abc119      RUNNING              0
+B  cfs             n2pl-pac-abc119      Y          N               ONLINE
+B  cvm             n2pl-pac-abc119      Y          N               ONLINE
+B  vxfen           n2pl-pac-abc119      Y          N               ONLINE
+[root@n2pl-pac-abc119 sysconfig]#
+
+
+How to stop cfs , cvm and vxfen on veritas 
+
+hagrp -offline -cfs -sys n2pl-pac-abc119
+
+hagrp -offline -cvm -sys n2pl-pac-abc119
+
+hagrp -offline -vxfen -sys n2pl-pac-abc119
+
+
+
+After reboot, we have to start varitas with below commands.
+
+ vxdisk list     ( first check list of disk )
+
+ hastart        ( start the varitas )
+
+less /var/VRTSvcs/log/engine_A.log   ( check the logs after run the commands)
+
+
+And finally check the status with below command.
+
+hastatus -sum | grep n2pl-pac-abc119
+
+
+
+After reboot the status
+
+ 1014  11:14:00 2017-05-24 /etc/init.d/vxodm status
+ 1015  11:14:24 2017-05-24 vxdisk list
+ 1016  11:16:02 2017-05-24 hastart
+ 1017  11:16:06 2017-05-24 cd /var
+ 1018  11:16:09 2017-05-24 cd log
+ 1019  11:16:10 2017-05-24 ls
+ 1020  11:16:17 2017-05-24 cd VRTSpbx/
+ 1021  11:16:18 2017-05-24 ls
+ 1022  11:16:29 2017-05-24 d ..
+ 1023  11:16:30 2017-05-24 ls
+ 1024  11:16:36 2017-05-24 less /var/VRTSvcs/log/engine_A.log
+ 1025  11:16:44 2017-05-24 tail -f /var/VRTSvcs/log/engine_A.log
+ 1026  11:17:07 2017-05-24 df
+ 1027  11:17:15 2017-05-24 df -hT
+ 1028  11:17:46 2017-05-24 /etc/init.d/vxodm status
+ 1029  11:18:03 2017-05-24 history
+[root@n2pl-pac-abc119 VRTSpbx]#
+
+ 956  10:57:02 2017-05-24 hastatus -sum | grep n2pl-pac-abc119
+  957  10:57:49 2017-05-24 cd /etc/sysconfig/
+  958  10:57:50 2017-05-24 ls
+  959  10:57:57 2017-05-24 vi vcs
+  960  10:58:26 2017-05-24 cd
+  961  11:00:43 2017-05-24 hagrp -offline -cfs -sys n2pl-pac-abc119
+  962  11:00:57 2017-05-24 hagrp -offline cfs -sys n2pl-pac-abc119
+  963  11:01:03 2017-05-24 hastatus -sum | grep n2pl-pac-abc119
+  964  11:01:40 2017-05-24 hagrp -offline cvm -sys n2pl-pac-abc119
+  965  11:01:44 2017-05-24 hastatus -sum | grep n2pl-pac-abc119
+  966  11:02:03 2017-05-24 watch 'hastatus -sum | grep n2pl-pac-abc119'
+
+​
+
+From: Shibasis Nayak
+Sent: Monday, October 22, 2018 6:17 AM
+To: nayakshibasis420@gmail.com
+Subject: Veritas Command for Apache Setup
+ 
+Veritas Volume Manager:-
+**********************
+vxdisk list ---- to show the list of disks if any of the disk is not the part of Veritas it will show online invalid you need intialize at first by using the command
+vxdisksetup -i sdb/sdc...sdn
+vxdisk list
+Then create disk group which is similar like Volume group in linux
+vxdg init diskgroupname thediskname
+Example:-vxdg init datadg sdb
+then please check by vxdisk list command
+for adding of second disk please run like below command
+vxdg -g datadg adddisk datadg02=sdc ----which will add second disk in datadg
+at a time you can able to add multiple disk into the existing diskgroup 
+vxdg -g datadg adddisk datadg03=sdd datadg04=sde
+you can able to edit the exsiting disk name also
+command:-
+vxedit -g datadg rename sdb datadg01
+We can remove the disk also using below commad
+command:-
+vxdisk -g datadg rmdisk datadg04
+vxdisk -g datadg adddisk datadg04=sdd ----for adding
+
+To check the space available in the diskgroup
+command:-
+vxassist -g datadg maxsize
+
+Create volume which same like logincal volume in LVM
+vxassist -g datadg make datavol1 100m
+for mirror volume 
+vxassist -g datadg make datavol2 100m layout=mirror
+suppose we need to add mirror in existing volume suppose for datavol1
+at first check 
+vxprint 
+it will show you all diskgroup,disk name,volume by default datavol1 has 1 plex and 1 
+subdisk and datavol2 has 2 plex and 2 subdisk as it is mirror layout 
+vxassist -g datadg mirror datavol1 datadg03
+then create file system
+mkfs -t vxfs /dev/vx/dsk/datadg/datavol1
+
+Main concept of VCS is based on 2 concept
+1)Service Group
+2)Resources
+mount -t vxfs /dev/vx/dsk/datadg/datavol1 /data1
+mount -t vxfs /dev/vx/dsk/datadg/datavol2 /data2
+
+Configure VCS cluster for High Availability Apache web server:-
+***********************************************************
+haconf -makerw
+Create Service Group
+hagrp -add websg1
+hagrp -modify websg1 Systemlist node1 0 node2 1
+hagrp -modify websg1 AutoStartList node1
+Create Resourses
+hares -add webnic1 NIC websg1
+hares -modify webnic1 Critical 0
+hares -modify webnic1 Device enp0s3
+hares -modify webnic1 NetworkHosts 192.168.80.0
+hares -modify webnic1 Enabled 1
+hares -state webnic1
+Adding Ip resourse to the service group
+hares -add webip1 IP websg1
+hares -modify webip1 Critical 0
+hares -modify webip1 Device enps03
+hares -modify webip1 Address 192.168.80.120
+hares -modify webip1 NetMask 255.255.255.0
+hares -modify webip1 Enabled 1
+hares -online webip1 -sys node1
+hares -state webip1
+Adding Volumegroup resourse to the service group
+hares -add webvg1 LVMVolumeGroup websg1
+hares -modify webvg1 Critical 0  ----which means noncritical 1 means critical
+hares -modify webvg1 VolumeGroup vgapache
+hares -modify webvg1 Enabled 1
+hares -online webvg1 -sys node1
+hares -state webvg1
+Adding Volume resource 
+hares -add webvol1 LVMLogicalVolume websg1
+hares -modify webvol1 Critical 0
+hares -modify webvol1 LogicalVolume lvapache
+hares -modify webvol1 VolumeGroup vgapache
+hares -modify webvol1 Enabled 1
+hares -online webvol1 -sys node1
+hares -state webvol1
+Adding Mount resouse for the service group
+hares -add webmnt1 Mount websg1
+hares -modify webmnt1 Critical 0
+hares -modify webmnt1 MountPoint /var/www/html
+hares -modify webmnt1 BlockDevice /dev/mapper/vgapache/lvapache
+hares -modify webmnt1 FSType ext4
+hares -modify webmnt1 FsckOpt %-y
+hares -modify webmnt1 Enabled 1
+hares -online webmnt1 -sys node1
+hares -state webmnt1
+Adding Apache resources to the service group websg1
+hares -add webapache1 Apache websg1
+hares -modify webapache1 Critical 0
+hares -modify webapache1 ConfigFile /etc/httpd/conf/httpd.conf
+hares -modify webapache1 httpdDir /usr/sbin
+hares -modify webapache1 Enabled 1
+hares -state webapache1
+Note:- if status is not showing online in node1 manually we have make online to the service group then please run below command
+hagrp -online websg1 -sys node1 
+
+Linking Resoursed in the service group
+*************************************
+hares -link webip1 webnic1
+hares -link webvol1 webvg1
+hares -link webmnt1 webvol1
+hares -link webapache1 webip1
+hares -link webapache1 webmnt1
+hares -dep | grep websg1
+Configuration is done.lets change the configuration readable
+haconf -dump -makero
+Switch the service group from node1 to node2 to check failover
+hagrp -switch websg1 -sys node2
+
+

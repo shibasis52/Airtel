@@ -1,0 +1,55 @@
+scp krb5.conf 10.5.233.129:/home/decoy
+scp krb5.keytab  10.5.233.129:/home/decoy
+scp libcollection-0.6.2-24.el7.i686.rpm  10.5.233.129:/home/decoy
+scp sssd.conf  10.5.233.129:/home/decoy
+
+scp  system-auth-ac 10.5.233.129:/home/decoy
+
+scp libcollection-0.6.2-27.el7.x86_64.rpm 10.5.233.129:/home/decoy
+
+yum install -y realmd sssd adcli oddjob samba-common krb* 
+
+yum -y install bind-utils
+yum -y install c-ares
+yum -y install libbasicobjects
+yum -y install libdhash
+yum -y install libini_config
+yum -y install libipa_hbac
+yum -y install libnfsidmap
+yum -y install libpath_utils
+yum -y install libref_array
+yum -y install libsmbclient
+yum -y install libsss_autofs
+yum -y install libsss_idmap
+yum -y install libsss_nss_idmap
+yum -y install libsss_sudo
+yum -y install python-sssdconfig.noarch
+yum -y install sssd-client
+
+realm discover india.airtel.itm
+
+cp  sssd.conf  /etc/sssd/sssd.conf
+cp /etc/krb5.conf /etc/krb5.conf_bck260717
+cp krb5.conf  /etc/krb5.conf
+cp krb5.keytab /etc/
+cp /etc/pam.d/system-auth-ac /etc/pam.d/system-auth-ac_bck2617
+cp system-auth-ac /etc/pam.d/
+
+
+systemctl status oddjobd
+
+service sssd stop ; rm -rf /var/lib/sss/db/* ; service sssd restart
+
+vi /etc/pam.d/password-auth-ac
+
+vi /etc/krb5.conf
+
+vi /etc/sssd/sssd.conf
+
+realm join india.airtel.itm
+
+
+
+
+realm permit --realm india.airtel.itm --all
+ authconfig --enablesssd --enablesssdauth --enablemkhomedir --update

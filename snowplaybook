@@ -1,0 +1,578 @@
+--
+- name: SKT Checklist
+  hosts: skt-build
+  gather_facts: no
+  tasks:
+    - name: Check if Server is Onboarded on Arcos
+      uri:
+        url: 'https://arcos.airtel.com:440/ARCOSWebAPI/ARCOSPWDAPI.asmx/Request_ARCOSServicePassword?ARCOSSharedKey=ARCOSGWPWAPI@2013@Test--1&ServerIP={{ inventory_hostname }}&ServiceTypeID=7&UserName=arcos_root&DBInstanceName= '
+        return_content: yes
+      ignore_errors: true
+      register: arcos_result
+      delegate_to: localhost
+
+    - name: debug
+      debug: msg="{{ inventory_hostname }} not found on ARCON"
+      when: "'ValidateServiceInLOB' in arcos_result.content"
+*******************************************************************************************
+
+#!/bin/bash
+# Program name: pingall.sh
+date
+cat /root/tes |  while read output
+do
+    ping -c 1 "$output" > /dev/null
+    if [ $? -eq 0 ]; then
+    echo "node $output is up"
+    else
+    echo "node $output is down"
+    fi
+done
+
+***********************************************************************************************
+
+---
+- name: Hadoop post configuration - RHEL 7.x Noida Phase 2
+  hosts: hadoop
+  become: yes
+  become_method: sudo
+  become_user: root
+  roles:
+    - grub_cmdline
+  vars:
+    grub_cmdline_add_args:
+      - ipv6.disable=1
+      - crashkernel="{% if  ansible_virtualization_role == 'guest' %}auto{% else %}768M{% endif %}"
+      - numa=off
+      - net.ifnames=0
+      - biosdevname=0
+
+  tasks:
+    - name: Create /etc/yum.repos.d/yum.repo
+      template: src=hadoop/yum.repo dest=/etc/yum.repos.d/yum.repo owner=root group=root mode=0644
+
+    - include: "common/login_defs.yaml"
+    - include: "common/ntp.yaml"
+    - include: "common/issue.yaml"
+    - include: "common/motd.yaml"
+    - include: "common/profile.yaml"
+    - include: "common/history.yaml"
+#    - include: "common/sysctl.yaml"
+    - include: "common/yum.yaml"
+    - include: "rhel7/pam.yaml"
+
+    - name: Install Required pre-requisites rpms
+      yum:
+        name:  "{{ item }}"
+        state: present
+      with_items:
+        - realmd
+        - sssd
+        - adcli
+        - oddjob
+        - samba-common
+        - 'krb*'
+        - bind-utils
+        - c-ares
+        - libbasicobjects
+        - libdhash
+        - libini_config
+        - libipa_hbac
+        - libnfsidmap
+        - libpath_utils
+        - libref_array
+        - libsmbclient
+        - libsss_autofs
+        - libsss_idmap
+        - libsss_nss_idmap
+        - libsss_sudo
+        - python-sssdconfig.noarch
+        - sssd-client
+        - libcollection
+        - ksh
+
+
+    - name: Disable Selinux
+      selinux: policy=targeted state=disabled
+
+    - name: Disable avahi daemon
+      systemd:
+        name: "{{ item }}"
+        masked: yes
+        state: stopped
+        enabled: false
+      ignore_errors: yes
+      with_items:
+        - avahi-dnsconfd
+        - avahi-daemon
+
+    - name: Add group aiprod
+      group:
+          name: aiprod
+          state: present
+          gid: 604
+
+    - name: Add group abinitio
+      group:
+          name: abinitio
+          state: present
+          gid: 600
+
+    - name: Add user aiprod
+      user:
+          name: aiprod #password="aiprod" update_password=always
+          state: present
+          uid: 604
+          group: aiprod
+          password: '$6$1DKrrsFJ$DcbsOwvzvpH2zOhp6AgxJvMZZYAF/18y71GHEyc7bt6.z4R1EFqvC5GwIZpBEskU7vbULz7pdGvCaot/wwEC6.'
+          #password: "{{ $1${{passwo$aV1jJTWbVTigqzsBzUNvo/ }}
+
+    - name: Add user abinitio
+      user:
+          name: abinitio #password="abinitio" update_password=always
+          state: present
+          uid: 600
+          group: abinitio
+          password: '$6$1DKrrsFJ$DcbsOwvzvpH2zOhp6AgxJvMZZYAF/18y71GHEyc7bt6.z4R1EFqvC5GwIZpBEskU7vbULz7pdGvCaot/wwEC6.'
+
+    - name: Create /dev/sda3 partition
+      shell: |
+         parted -s -m -a optimal /dev/sda -- unit s mkpart primary 411699200 3513671679
+         parted -s -m -a optimal /dev/sda -- unit s set 3 lvm
+      args:
+          creates: /dev/sda3
+      when: datavg_disk_sda == 'yes'
+
+    - name: Add Volume Group datavg on /dev/sdb
+      lvg:
+          vg: datavg
+          state: present
+          pvs: /dev/sdb
+      when: datavg_disk_sda == 'no'
+
+    - name: Add Volume Group datavg on /dev/sda3
+      lvg:
+          vg: datavg
+          state: present
+          pvs: /dev/sda3
+      when: datavg_disk_sda == 'yes'
+
+    - name: Add Logical Volume datalv
+      lvol:
+          vg: datavg
+          state: present
+          lv: datalv
+          size: 350G
+
+    - name: Add Logical Volume abinitio
+      lvol:
+          vg: datavg
+          state: present
+          lv: abinitiolv
+          size: 50G
+
+    - name: Add mount point
+      file:
+          path: "{{ item }}"
+          state: directory
+          mode: 0755
+      with_items:
+        - /data
+        - /abinitio
+
+
+    - name: Format /dev/datavg/datalv and /dev/datavg/abinitiolv
+      filesystem:
+        fstype: xfs
+        dev: "{{ item }}"
+      with_items:
+          - /dev/datavg/datalv
+          - /dev/datavg/abinitiolv
+
+    - name: mount /data
+      mount:
+        path: /data
+        src: /dev/datavg/datalv
+        state: mounted
+        fstype: xfs
+
+    - name: mount /abinitio
+      mount:
+        path: /abinitio
+        src: /dev/datavg/abinitiolv
+        state: mounted
+        fstype: xfs
+
+   # - name: Add /data in fstab
+   #   shell: "mount -a"
+
+    - name: Set Hostname
+      hostname:
+             name: "{{ fqdn }}"
+
+    - name: update /etc/hosts
+      lineinfile:
+             dest: '/etc/hosts'
+             regexp: "{{ inventory_hostname }}"
+             line: '{{ inventory_hostname }}  {{ fqdn }}'
+             state: present
+
+    - name: Create /etc/krb5.conf
+      template: src=hadoop/krb5.conf dest=/etc/krb5.conf owner=root group=root mode=0644
+      #notify: Discover Realm
+
+
+    - name: Create /etc/krb5.conf
+      template: src=hadoop/resolv.conf dest=/etc/resolv.conf owner=root group=root mode=0644
+    # notify: Discover Realm
+
+    - name: Create  /etc/krb5.keytab
+      copy: src=hadoop/krb5.keytab dest=/etc/krb5.keytab owner=root group=root mode=0600
+     # notify: Discover Realm
+
+    - name: Create  /etc/sssd/sssd.conf
+      template: src=hadoop/sssd.conf dest=/etc/sssd/sssd.conf owner=root group=root mode=0600
+      #notify: Discover Realm
+
+    - name: Create   /etc/pam.d/system-auth-ac
+      template: src=hadoop/system-auth-ac dest=/etc/pam.d/system-auth-ac owner=root group=root mode=0644
+      notify: primit Realm
+
+    - name: Allow 'abinitio' group to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: '^abinitio'
+        line: 'abinitio ALL=(ALL) NOPASSWD: ALL'
+        validate: 'visudo -cf %s'
+
+    - name: Update the system with Latest patch
+      yum:
+        name: "*"
+        state: latest
+
+# Create a logical volume of 512m with disks /dev/sda and /dev/sdb
+# Create a logical volume of 512m with disks /dev/sda and /dev/sdb
+# - lvol:
+#     vg: firefly
+#         lv: test
+#             size: 512
+#                 pvs: /dev/sda,/dev/sdb
+
+
+
+  handlers:
+    - name: Restart NTP
+      systemd: name=ntpd masked=no  state=restarted enabled=true
+
+   # - name: Join Realm
+      #shell: "realm join 10.5.140.199"
+
+    - name: primit Realm
+      shell: "realm permit --realm india.airtel.itm --all"
+
+    - name: Discover Realm
+      shell: "realm discover india.airtel.itm"
+
+    - name: Restart NetworkManager
+      systemd: name=NetworkManager masked=no  state=restarted enabled=true
+
+    - name: Restart sssd
+      systemd: name=sssd masked=no  state=restarted enabled=true
+
+    - name: primit Realm
+      shell: "realm permit --realm india.airtel.itm --all"
+
+***********************************************************************************
+#!/bin/bash
+KERN=`uname -r | awk -F. '{ printf("%d.%d\n",$1,$2); }'`
+# Find out the HugePage size
+HPG_SZ=`grep Hugepagesize /proc/meminfo | awk '{print $2}'`
+# Start from 1 pages to be on the safe side and guarantee 1 free HugePage
+NUM_PG=1
+# Cumulative number of pages required to handle the running shared memory segments
+for SEG_BYTES in `ipcs -m | awk '{print $5}' | grep "[0-9][0-9]*"`
+do
+MIN_PG=`echo "$SEG_BYTES/($HPG_SZ*1024)" | bc -q`
+if [ $MIN_PG -gt 0 ]; then
+        NUM_PG=`echo "$NUM_PG+$MIN_PG+1" | bc -q`
+fi
+done
+# Finish with results
+case $KERN in
+'2.4') HUGETLB_POOL=`echo "$NUM_PG*$HPG_SZ/1024" | bc -q`;
+###echo "Recommended setting: vm.hugetlb_pool = $HUGETLB_POOL" ;;
+echo $MEM_LOCK;;
+'2.6') MEM_LOCK=`echo "$NUM_PG*$HPG_SZ" | bc -q`;
+#echo "Recommended setting within the kernel boot command line: hugepages = $NUM_PG"
+###echo "Recommended setting within /etc/security/limits.d/99-grid-oracle-limits.conf: oracle soft memlock $MEM_LOCK"
+###echo "Recommended setting within /etc/security/limits.d/99-grid-oracle-limits.conf: oracle hard memlock $MEM_LOCK" ;;
+echo $MEM_LOCK;;
+'3.10') MEM_LOCK=`echo "$NUM_PG*$HPG_SZ" | bc -q`;
+#echo "Recommended setting within the kernel boot command line: hugepages = $NUM_PG"
+###echo "Recommended setting within /etc/security/limits.d/99-grid-oracle-limits.conf: oracle soft memlock $MEM_LOCK"
+###echo "Recommended setting within /etc/security/limits.d/99-grid-oracle-limits.conf: oracle hard memlock $MEM_LOCK" ;;
+echo $MEM_LOCK;;
+*) echo "Unrecognized kernel version $KERN. Exiting." ;;
+esac
+
+*********************************************************************************************
+
+---
+- name: Airtel RHEL 7 OS Hardening
+  hosts: build
+  become: yes
+  become_method: sudo
+  become_user: root
+  roles:
+    - grub_cmdline
+    - pam-pwquality
+  vars:
+    pam_pwquality_dcredit: -1
+    pam_pwquality_difok: 8
+    pam_pwquality_gecoscheck: 1
+    pam_pwquality_lcredit: -1
+    pam_pwquality_maxrepeat: 4
+    pam_pwquality_maxclassrepeat: 4
+    pam_pwquality_minclass: 4
+    pam_pwquality_minlen: 8
+    pam_pwquality_ocredit: -1
+    pam_pwquality_ucredit: -1
+    grub_cmdline_add_args:
+      - ipv6.disable=1
+      - crashkernel=auto
+      - "{{ grub_cmdline_bios_args }}"
+  tasks:
+#  - name: Check if ipv6 already disabled
+#    shell: grep 'ipv6.disable' /etc/default/grub
+#    register: test_ipv6
+
+#  - name: Disable ipv6
+#    replace:
+#      dest: /etc/default/grub
+#      regexp: 'quiet'
+#      replace: 'quiet ipv6.disable=1'
+#    when: test_ipv6.stdou != ""
+#    notify:
+#      Create grub2.cfg
+
+  - name: Get Default target/runlevel
+    shell: systemctl get-default
+    register: defaultTarget
+    changed_when: false
+
+  - debug:
+      var: defaultTarget
+
+  - name: Set Default target to multi-user.target
+    shell: systemctl set-default multi-user.target
+    when: defaultTarget.stdout != "multi-user.target"
+
+  - name: Disable GNOME Automounting
+    shell: "gconftool-2 --direct --config-source xml:readwrite:/etc/gconf/gconf.xml.mandatory --type bool --set /desktop/gnome/volume_manager/automount_media false && gc
+onftool-2 --direct --config-source xml:readwrite:/etc/gconf/gconf.xml.mandatory --type bool --set /desktop/gnome/volume_manager/automount_drives false"
+ when: defaultTarget.stdout == "graphical.target" and not ansible_check_mode
+
+  - name: Set permission of /etc/{passwd,group}
+    file: path={{ item }} owner=root group=root mode=0644
+    with_items:
+      - /etc/passwd
+      - /etc/group
+
+  - name: Set permission of /etc/{shadow,gshadow}
+    file: path={{ item }} owner=root group=root mode=0000
+    with_items:
+      - /etc/shadow
+      - /etc/gshadow
+
+  - name: Disable reboot/shutdown for other users
+    file: path={{ item }} owner=root group=root mode=0500
+    with_items:
+      - /usr/bin/consolehelper
+      - /usr/bin/systemctl
+    ignore_errors: yes
+
+  - name: Configure /etc/ssh/sshd_config
+    template: src=hardening/sshd_config dest=/etc/ssh/sshd_config owner=root group=root mode=0600
+    notify:
+     - restart sshd
+
+  - name: Remove /etc/cron.deny
+    file: path=/etc/cron.deny state=absent
+
+  - name: add root in /etc/cron.allow
+    copy: path=/etc/cron.allow content="root" owner=root group=root mode=0644
+
+  - name: Ensure crond is running/enabled
+    service: name=crond state=started enabled=yes
+
+  - name: Set permission of /etc/crontab
+    file: path={{ item }} owner=root group=root mode=0600
+    with_items:
+      - /etc/crontab
+
+  - name: Set permission of /etc/cron*
+    file: path={{ item }} owner=root group=root recurse=yes mode=0600
+    with_items:
+      - /etc/cron.hourly
+      - /etc/cron.daily
+      - /etc/cron.weekly
+      - /etc/cron.monthly
+      - /etc/cron.d
+      - /var/spool/cron
+
+  - name: Install required Packages
+    yum: name={{ item }} state=present
+ with_items:
+      - telnet
+      - kexec-tools
+      - vim
+      - curl
+      - sysstat
+      - numad
+      - numactl
+      - net-tools
+      - tcpdump
+      - irqbalance
+      - tuned
+      - perf
+      - strace
+      - psacct
+      - bc
+
+  - name: Ensure psacct is running/enabled
+    service: name=psacct state=started enabled=yes masked=no
+
+  - name: Disable Selinux
+    selinux: policy=targeted state=disabled
+
+  - name: Mask unwanted Services
+    systemd: name={{ item }} state=stopped enabled=no masked=yes
+    with_items:
+      - NetworkManager.service
+      - chronyd.service
+      - ctrl-alt-del.target
+      - firewalld.service
+      - iptables.service
+      - NetworkManager-wait-online.service
+    ignore_errors: yes
+
+  - include: "common/login_defs.yaml"
+  - include: "common/ntp.yaml"
+  - include: "common/issue.yaml"
+  - include: "common/motd.yaml"
+  - include: "common/profile.yaml"
+  - include: "common/history.yaml"
+  - include: "common/sysctl.yaml"
+  - include: "common/yum.yaml"
+  - include: "common/arcos.yaml"
+  - include: "rhel7/pam.yaml"
+  - include: "common/multipath.yaml"
+  - include: "rhel7/zenoss.yaml"
+
+  handlers:
+   - name: Restart NTP
+     systemd: name=ntpd masked=no  state=restarted enabled=true
+
+   - name: restart sshd
+     systemd: name=sshd masked=no  state=restarted enabled=true
+   
+   - name: reload sysctl.conf
+     command: /sbin/sysctl -p
+
+   - name: flush routes
+     command: /sbin/sysctl -w net.ipv4.route.flush=1
+
+   - name: Restart Multipath
+     systemd: name=multipathd masked=no  state=restarted enabled=true
+
+[root@N2VL-PA-ANS01 deepak]# cat common/login_defs.yaml
+---
+#******************************************************************************
+- name: Set Password Expiration Days
+  lineinfile:
+    dest: '/etc/login.defs'
+    regexp: "PASS_MAX_DAYS"
+    line: "PASS_MAX_DAYS 90"
+    state: present
+
+- name: Set Password Expiration Days
+  lineinfile:
+    dest: '/etc/login.defs'
+    regexp: "PASS_MIN_DAYS"
+    line: "PASS_MIN_DAYS 1"
+    state: present
+
+
+- name: Set Password Min Length
+  lineinfile:
+    dest: '/etc/login.defs'
+    regexp: "PASS_MIN_LEN"
+    line: "PASS_MIN_LEN 8"
+    state: present
+
+- name: Set Default umask for Users
+  lineinfile:
+    dest: '/etc/login.defs'
+    regexp: "UMASK"
+    line: "UMASK 077"
+    state: present
+[root@N2VL-PA-ANS01 deepak]#
+
+[root@N2VL-PA-ANS01 deepak]# cat common/ntp.yaml
+---
+- name: Install NTP
+  yum: name=ntp state=present
+
+- name: Config /etc/ntp.conf
+  template: src=hardening/ntp.conf
+        dest=/etc/ntp.conf
+        owner=root
+        group=root
+        mode=0644
+  notify:
+    Restart NTP
+
+[root@N2VL-PA-ANS01 deepak]#
+
+[root@N2VL-PA-ANS01 deepak]# cat common/issue.yaml
+---
+
+- name: Set Banner
+  template: src=hardening/issue
+        dest=/etc/issue
+        owner=root
+        group=root
+        mode=0644
+[root@N2VL-PA-ANS01 deepak]#
+
+
+[root@N2VL-PA-ANS01 deepak]# cat common/motd.yaml
+---
+
+- name: Set MOTD
+  file: content="Authorized uses only. All activity may be monitored and reported.\n"
+        dest=/etc/motd
+        owner=root
+        group=root
+        mode=0644
+[root@N2VL-PA-ANS01 deepak]#
+
+
+[root@N2VL-PA-ANS01 deepak]# cat common/service-now.yaml
+---
+- name: Add User  "{{ item }}"
+  user: name="{{ item }}" state=present password="{{ snow_user_password }}" expires="-1"
+  with_items:
+    - snow_user
+
+- name: Set password expiry to Never for snow_user
+  shell: "chage -M -1 snow_user"
+
+- name: Update sudo rules for snow_user
+  copy:
+     dest: '/etc/sudoers.d/servicenow'
+     content: "snow_user ALL=(root) NOPASSWD: /usr/sbin/dmidecode,/usr/sbin/lsof,/usr/bin/fdisk -l,/usr/bin/dmsetup table,/usr/bin/dmsetup ls,/sbin/multipath,/usr/sbin/vxdmpadm"
+     owner: root
+     group: root
+     mode: 0400

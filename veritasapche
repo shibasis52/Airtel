@@ -1,0 +1,116 @@
+Veritas Volume Manager:-
+**********************
+vxdisk list ---- to show the list of disks if any of the disk is not the part of Veritas it will show online invalid you need intialize at first by using the command
+vxdisksetup -i sdb/sdc...sdn
+vxdisk list
+Then create disk group which is similar like Volume group in linux
+vxdg init diskgroupname thediskname
+Example:-vxdg init datadg sdb
+then please check by vxdisk list command
+for adding of second disk please run like below command
+vxdg -g datadg adddisk datadg02=sdc ----which will add second disk in datadg
+at a time you can able to add multiple disk into the existing diskgroup 
+vxdg -g datadg adddisk datadg03=sdd datadg04=sde
+you can able to edit the exsiting disk name also
+command:-
+vxedit -g datadg rename sdb datadg01
+We can remove the disk also using below commad
+command:-
+vxdisk -g datadg rmdisk datadg04
+vxdisk -g datadg adddisk datadg04=sdd ----for adding
+
+To check the space available in the diskgroup
+command:-
+vxassist -g datadg maxsize
+
+Create volume which same like logincal volume in LVM
+vxassist -g datadg make datavol1 100m
+for mirror volume 
+vxassist -g datadg make datavol2 100m layout=mirror
+suppose we need to add mirror in existing volume suppose for datavol1
+at first check 
+vxprint 
+it will show you all diskgroup,disk name,volume by default datavol1 has 1 plex and 1 
+subdisk and datavol2 has 2 plex and 2 subdisk as it is mirror layout 
+vxassist -g datadg mirror datavol1 datadg03
+then create file system
+mkfs -t vxfs /dev/vx/dsk/datadg/datavol1
+
+Main concept of VCS is based on 2 concept
+1)Service Group
+2)Resources
+mount -t vxfs /dev/vx/dsk/datadg/datavol1 /data1
+mount -t vxfs /dev/vx/dsk/datadg/datavol2 /data2
+
+Configure VCS cluster for High Availability Apache web server:-
+***********************************************************
+haconf -makerw
+Create Service Group
+hagrp -add websg1
+hagrp -modify websg1 Systemlist node1 0 node2 1
+hagrp -modify websg1 AutoStartList node1
+Create Resourses
+hares -add webnic1 NIC websg1
+hares -modify webnic1 Critical 0
+hares -modify webnic1 Device enp0s3
+hares -modify webnic1 NetworkHosts 192.168.80.0
+hares -modify webnic1 Enabled 1
+hares -state webnic1
+Adding Ip resourse to the service group
+hares -add webip1 IP websg1
+hares -modify webip1 Critical 0
+hares -modify webip1 Device enps03
+hares -modify webip1 Address 192.168.80.120
+hares -modify webip1 NetMask 255.255.255.0
+hares -modify webip1 Enabled 1
+hares -online webip1 -sys node1
+hares -state webip1
+Adding Volumegroup resourse to the service group
+hares -add webvg1 LVMVolumeGroup websg1
+hares -modify webvg1 Critical 0  ----which means noncritical 1 means critical
+hares -modify webvg1 VolumeGroup vgapache
+hares -modify webvg1 Enabled 1
+hares -online webvg1 -sys node1
+hares -state webvg1
+Adding Volume resource 
+hares -add webvol1 LVMLogicalVolume websg1
+hares -modify webvol1 Critical 0
+hares -modify webvol1 LogicalVolume lvapache
+hares -modify webvol1 VolumeGroup vgapache
+hares -modify webvol1 Enabled 1
+hares -online webvol1 -sys node1
+hares -state webvol1
+Adding Mount resouse for the service group
+hares -add webmnt1 Mount websg1
+hares -modify webmnt1 Critical 0
+hares -modify webmnt1 MountPoint /var/www/html
+hares -modify webmnt1 BlockDevice /dev/mapper/vgapache/lvapache
+hares -modify webmnt1 FSType ext4
+hares -modify webmnt1 FsckOpt %-y
+hares -modify webmnt1 Enabled 1
+hares -online webmnt1 -sys node1
+hares -state webmnt1
+Adding Apache resources to the service group websg1
+hares -add webapache1 Apache websg1
+hares -modify webapache1 Critical 0
+hares -modify webapache1 ConfigFile /etc/httpd/conf/httpd.conf
+hares -modify webapache1 httpdDir /usr/sbin
+hares -modify webapache1 Enabled 1
+hares -state webapache1
+Note:- if status is not showing online in node1 manually we have make online to the service group then please run below command
+hagrp -online websg1 -sys node1 
+
+Linking Resoursed in the service group
+*************************************
+hares -link webip1 webnic1
+hares -link webvol1 webvg1
+hares -link webmnt1 webvol1
+hares -link webapache1 webip1
+hares -link webapache1 webmnt1
+hares -dep | grep websg1
+Configuration is done.lets change the configuration readable
+haconf -dump -makero
+Switch the service group from node1 to node2 to check failover
+hagrp -switch websg1 -sys node2​
+
+
